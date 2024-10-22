@@ -2,6 +2,7 @@ import json, os
 from seleniumbase import SB
 from selenium.webdriver.common.by import By
 from datetime import datetime
+from tqdm import tqdm
 
 locations = {
     "US": "https://news.google.com/?hl=en-US&gl=US&ceid=US:en",  # San Francisco
@@ -14,23 +15,26 @@ locations = {
 
 
 def extract_email_password_pairs(file_path = "accounts.txt"):
+    '''
+    return a list of emails
+    [(email, password, backup_email, backup_password, region), ...]
+    '''
     with open(file_path, 'r') as file:
         lines = file.readlines()
+        
+    for line in lines:
+        email, password, backup_email, backup_password, region = line.strip().split('----')
+        yield email, password, backup_email, backup_password, region
     # strip the last two ascii for each line
-    content = ''.join([line[:-2] for line in lines])
-    parts = content.split('----')
-    email_password_pairs = [(parts[i].strip(), parts[i + 1].strip()) for i in range(0, len(parts) - 1, 2)]
-    return email_password_pairs
-
+    
 
 # Function to create folder based on email and today's date
 def create_save_folder(email):
     today_date = datetime.now().strftime("%Y-%m-%d")
-    folder_path = f"{email}/{today_date}"
+    folder_path = os.path.join("save", email, today_date)
     os.makedirs(folder_path, exist_ok=True)
     return folder_path
 
-# Function to scrape articles from the news page
 def scrape_articles(sb, location_name, location_url, folder_path):
     news_data = []
     num_articles = 0
@@ -44,11 +48,17 @@ def scrape_articles(sb, location_name, location_url, folder_path):
             if num_articles >= 50:
                 break
             try:
-                # Scrape the source (media name) using the correct class "vr1PYe"
-                source_element = article.find_element(By.CSS_SELECTOR, ".vr1PYe")
-                source = source_element.text if source_element else "No Source"
+                # Scrape sourceSrc (media image link) and sourceText if the new structure exists
+                try:
+                    image_container = article.find_element(By.CSS_SELECTOR, ".MCAGUe")
+                    source_element = article.find_element(By.CSS_SELECTOR, ".qEdqNd")
+                    source = source_element.get_attribute("src") if source_element else "No Source"
+                except:
+                    # Fallback for old structure
+                    source_element = article.find_element(By.CSS_SELECTOR, ".vr1PYe")
+                    source = source_element.text if source_element else "No Source"
 
-                # Scrape the title and link using the correct class "gPFEn"
+                # Scrape title and link (applies to both structures)
                 title_element = article.find_element(By.CSS_SELECTOR, ".gPFEn")
                 title = title_element.text if title_element else "No Title"
                 text_link = title_element.get_attribute("href") if title_element else "No Link"
@@ -77,7 +87,6 @@ def scrape_articles(sb, location_name, location_url, folder_path):
         # Scroll down the page to load more articles
         sb.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         sb.sleep(3)  # Pause to allow new content to load
-
 
     save_path = os.path.join(folder_path, f"{location_name}.json")
     with open(save_path, 'w') as f:
@@ -114,9 +123,16 @@ def main_scraper(email, password):
 
         # Loop through each location and scrape the articles
         for location_name, location_url in locations.items():
+            # first check if the file existed
+            if os.path.exists(f"{folder_path}/{location_name}.json"):
+                print(f"File {location_name} already existed, skip scraping")
+                continue
             print(f"Scraping news for {location_name}...")
             scrape_articles(sb, location_name, location_url, folder_path)
 
 if __name__ == "__main__":
-    email, password = "schmitsondrini@gmail.com", "ftywfzlvjnl"
-    main_scraper(email, password)
+    # use tqdm to show progress
+    for email, password, backup_email, backup_password, region in tqdm(extract_email_password_pairs()):
+        print(f"Scraping news for {email}...")
+        main_scraper(email, password)
+    print("All done!")
