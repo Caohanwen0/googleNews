@@ -3,15 +3,15 @@ from seleniumbase import SB
 from selenium.webdriver.common.by import By
 from datetime import datetime
 from tqdm import tqdm
+from logging import getLogger
 
 locations = {
-    "US": "https://news.google.com/?hl=en-US&gl=US&ceid=US:en",  # San Francisco
-    "JP": "https://news.google.com/?hl=en-JP&gl=JP&ceid=JP:en",  # Tokyo
-    "UK": "https://news.google.com/?hl=en-GB&gl=GB&ceid=GB:en",  # London
-    "DE": "https://news.google.com/?hl=en-DE&gl=DE&ceid=DE:en",  # Berlin
-    "FR": "https://news.google.com/?hl=en-FR&gl=FR&ceid=FR:en",  # Lyon
+    "SF": "https://news.google.com/?hl=en-US&gl=US&ceid=US:en",  # San Francisco
+    "NY": "https://news.google.com/?hl=en-US&gl=US&ceid=US:en",  # New York
+    "CA": "https://news.google.com/?hl=en-US&gl=US&ceid=US:en",  # Chicago
+    "LA": "https://news.google.com/?hl=en-US&gl=US&ceid=US:en",  # Los Angeles
+    "HT": "https://news.google.com/?hl=en-US&gl=US&ceid=US:en",  # Houston
 }
-
 
 
 def extract_email_password_pairs(file_path = "accounts.txt"):
@@ -95,10 +95,13 @@ def scrape_articles(sb, location_name, location_url, folder_path):
 
 
 def main_scraper(email, password):
-    with SB(uc=True) as sb:
-        
-        
-        # signin
+    folder_path = create_save_folder(email)
+    if len(os.listdir(folder_path)) >= len(locations):
+        print(f"Scraping for {email} is already done, skipping...")
+        return
+    with SB(uc = True, headless = True) as sb:
+        print(f"Scraping news for {email}...")
+        # otherwise we have to endure signin
         sb.open("https://accounts.google.com/signin")
 
         # Type in the email address (wait for the input field)
@@ -118,14 +121,11 @@ def main_scraper(email, password):
         if sb.is_element_visible('button:contains("以后再说")'):
             sb.click('button:contains("以后再说")')
 
-        # save folder 
-        folder_path = create_save_folder(email)
-
         # Loop through each location and scrape the articles
         for location_name, location_url in locations.items():
             # first check if the file existed
             if os.path.exists(f"{folder_path}/{location_name}.json"):
-                print(f"File {location_name} already existed, skip scraping")
+                print(f"File {location_name} already existed, skip scraping...")
                 continue
             print(f"Scraping news for {location_name}...")
             scrape_articles(sb, location_name, location_url, folder_path)
@@ -133,6 +133,5 @@ def main_scraper(email, password):
 if __name__ == "__main__":
     # use tqdm to show progress
     for email, password, backup_email, backup_password, region in tqdm(extract_email_password_pairs()):
-        print(f"Scraping news for {email}...")
         main_scraper(email, password)
     print("All done!")
