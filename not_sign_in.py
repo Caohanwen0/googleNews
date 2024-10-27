@@ -4,6 +4,7 @@ from selenium.webdriver.common.by import By
 from datetime import datetime
 from tqdm import tqdm
 from logging import getLogger
+import random
 
 locations = {
     "SF": "https://news.google.com/?hl=en-US&gl=US&ceid=US:en",  # San Francisco
@@ -35,7 +36,7 @@ def create_save_folder(email):
     os.makedirs(folder_path, exist_ok=True)
     return folder_path
 
-def scrape_articles(sb, location_name, location_url, folder_path):
+def scrape_articles(sb, location_name, location_url, folder_path, save_filename):
     news_data = []
     num_articles = 0
 
@@ -74,7 +75,8 @@ def scrape_articles(sb, location_name, location_url, folder_path):
                     "titleText": title,
                     "datetime": datetime,
                     "timeText": time_text,
-                    "textLink": text_link
+                    "textLink": text_link,
+                    "selected": False
                 })
 
                 num_articles += 1
@@ -88,7 +90,16 @@ def scrape_articles(sb, location_name, location_url, folder_path):
         sb.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         sb.sleep(3)  # Pause to allow new content to load
 
-    save_path = os.path.join(folder_path, f"{location_name}.json")
+
+    # randomly select a textLink to open
+    random_textLink_idx = random.randint(0, num_articles-1)
+    random_textLink = news_data[random_textLink_idx]['textLink']
+    # mark the selected article
+    news_data[random_textLink_idx]['selected'] = True
+    sb.open(random_textLink)
+    sb.sleep(3)
+    
+    save_path = os.path.join(folder_path, save_filename)
     with open(save_path, 'w') as f:
         json.dump(news_data, f, indent=4)
     print(f"Saved {num_articles} articles to {save_path}")
@@ -99,7 +110,7 @@ def main_scraper(email, password):
     if len(os.listdir(folder_path)) >= len(locations):
         print(f"Scraping for {email} is already done, skipping...")
         return
-    with SB(uc = True, headless = True) as sb:
+    with SB(uc = True, headless = False) as sb:
         print(f"Scraping news for {email}...")
         # otherwise we have to endure signin
         sb.open("https://accounts.google.com/signin")
@@ -121,17 +132,30 @@ def main_scraper(email, password):
         if sb.is_element_visible('button:contains("以后再说")'):
             sb.click('button:contains("以后再说")')
 
-        # Loop through each location and scrape the articles
-        for location_name, location_url in locations.items():
-            # first check if the file existed
-            if os.path.exists(f"{folder_path}/{location_name}.json"):
-                print(f"File {location_name} already existed, skip scraping...")
-                continue
-            print(f"Scraping news for {location_name}...")
-            scrape_articles(sb, location_name, location_url, folder_path)
+        # # Loop through each location and scrape the articles
+        # for location_name, location_url in locations.items():
+        #     # first check if the file existed
+        #     if os.path.exists(f"{folder_path}/{location_name}.json"):
+        #         print(f"File {location_name} already existed, skip scraping...")
+        #         continue
+        #     print(f"Scraping news for {location_name}...")
+        #     scrape_articles(sb, location_name, location_url, folder_path)
+        
+        total_scrap_time = len(locations)
+        existed_scrap_time = len(os.listdir(folder_path))
+        scrap_time = total_scrap_time - existed_scrap_time
+        scrap_idx = list(set(range(total_scrap_time)) - set(range(existed_scrap_time)))
+        for idx in scrap_idx:
+            # randomly select a location
+            location_name = random.choice(list(locations.keys()))
+            print(f"Scraping news for {idx}-th time for city {location_name}...")
+            save_filename  = f"{idx}.json"
+            scrape_articles(sb, location_name, locations[location_name], folder_path, save_filename)
+            
+            
 
 if __name__ == "__main__":
     # use tqdm to show progress
     for email, password, backup_email, backup_password, region in tqdm(extract_email_password_pairs()):
         main_scraper(email, password)
-    print("All done!")
+    print(f"All done! for {datetime.now().strftime('%Y-%m-%d')}.")
