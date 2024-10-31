@@ -51,16 +51,19 @@ def scrape_articles(sb, location_name, location_url, folder_path, save_filename)
             try:
                 # Scrape sourceSrc (media image link) and sourceText if the new structure exists
                 try:
+                    # Fallback for old structure
+                    source_element = article.find_element(By.CSS_SELECTOR, ".vr1PYe")
+                    source = source_element.text
+                except:
                     image_container = article.find_element(By.CSS_SELECTOR, ".MCAGUe")
                     source_element = article.find_element(By.CSS_SELECTOR, ".qEdqNd")
                     source = source_element.get_attribute("src") if source_element else "No Source"
-                except:
-                    # Fallback for old structure
-                    source_element = article.find_element(By.CSS_SELECTOR, ".vr1PYe")
-                    source = source_element.text if source_element else "No Source"
 
                 # Scrape title and link (applies to both structures)
-                title_element = article.find_element(By.CSS_SELECTOR, ".gPFEn")
+                try:
+                    title_element = article.find_element(By.CSS_SELECTOR, ".gPFEn")
+                except:
+                    title_element = article.find_element(By.CSS_SELECTOR, ".JtKRv")
                 title = title_element.text if title_element else "No Title"
                 text_link = title_element.get_attribute("href") if title_element else "No Link"
 
@@ -83,7 +86,7 @@ def scrape_articles(sb, location_name, location_url, folder_path, save_filename)
                 print(f"Scraped article {num_articles}: {title} - {source} - {datetime} - {time_text} - {text_link}")
 
             except Exception as e:
-                print(f"Error scraping article: {e}")
+                print(f"Error scraping article : {e}")
                 continue
 
         # Scroll down the page to load more articles
@@ -110,7 +113,7 @@ def main_scraper(email, password):
     if len(os.listdir(folder_path)) >= len(locations):
         print(f"Scraping for {email} is already done, skipping...")
         return
-    with SB(uc = True, headless = False) as sb:
+    with SB(uc = True, headless = True) as sb:
         print(f"Scraping news for {email}...")
         # otherwise we have to endure signin
         sb.open("https://accounts.google.com/signin")
