@@ -54,10 +54,19 @@ def scrape_articles(sb, location_name, location_url, folder_path, save_filename)
                     # Fallback for old structure
                     source_element = article.find_element(By.CSS_SELECTOR, ".vr1PYe")
                     source = source_element.text
+                    if source == "":  # Check if the result is an empty string
+                        raise Exception("Empty source")
                 except:
-                    image_container = article.find_element(By.CSS_SELECTOR, ".MCAGUe")
-                    source_element = article.find_element(By.CSS_SELECTOR, ".qEdqNd")
-                    source = source_element.get_attribute("src") if source_element else "No Source"
+                    # msvBD krHqHb
+                    try:
+                        source_element = article.find_element(By.CSS_SELECTOR, ".qEdqNd")
+                        source = source_element.get_attribute("src") if source_element else "No Source"
+                        # if does not found the source, then use the text
+                        if source == "No Source":
+                            raise Exception("Empty source")
+                    except:
+                        source_element = article.find_element(By.CSS_SELECTOR, ".msvBD")
+                        source = source_element.text if source_element else "No Source"
 
                 # Scrape title and link (applies to both structures)
                 try:
